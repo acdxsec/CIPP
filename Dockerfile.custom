@@ -20,7 +20,7 @@ RUN npm run build \
 RUN apt-get update \
     && apt-get install -y --no-install-recommends brotli gzip \
     && find out -type f ! -name '*.br' ! -name '*.gz' -exec gzip -9 -k -f '{}' \; \
-    && find out -type f ! -name '*.br' ! -name '*.gz' -exec brotli -q 11 -k -f '{}' \; \
+    && find out -type f ! -name '*.br' ! -name '*.gz' -exec brotli -q 6 -k -f '{}' \; \
     && rm -rf /var/lib/apt/lists/*
 
 # CIPP NG 10.9.1 (linux/amd64). Update this digest together with the frontend
