@@ -14,11 +14,9 @@ const apiUrl = "/api/ListGDAPInvite";
 const actions = [
   {
     label: "Accept and onboard",
-    link: "m365internals-gdap://accept/[RowKey]",
+    link: "/tenant/gdap-management/invites/accept?id=[RowKey]",
     icon: <Login />,
     color: "success",
-    external: true,
-    target: "_self",
   },
   {
     label: "Update Internal Reference",

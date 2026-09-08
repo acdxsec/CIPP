@@ -1,0 +1,11 @@
+.git
+node_modules
+.next
+out
+.env
+.env.*
+*.pem
+*.pfx
+*.key
+playwright-report
+test-results

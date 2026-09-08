@@ -236,6 +236,10 @@ const Page = () => {
                     data={inviteData}
                     noCard={true}
                     simpleColumns={["Message", "InviteUrl", "OnboardingUrl"]}
+                    actions={[{
+                      label: 'Accept and onboard',
+                      link: '/tenant/gdap-management/invites/accept?id=[RowKey]',
+                    }]}
                   />
                 </Grid>
               </>
