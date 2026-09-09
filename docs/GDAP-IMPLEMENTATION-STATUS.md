@@ -4,6 +4,11 @@ This is a development candidate, not a completed production journey. User approv
 to implement supersedes the earlier Wayfinder map's planning-only scope; it does
 not authorize deploying into Azure. No tenant approval has been performed.
 
+The inherited branch-check workflow automatically closed PR #9 because it targeted
+`main`; it was not merged. The continuation is reviewed against the dedicated
+`integration/gdap-acceptance` branch, based on the unchanged release baseline.
+No branch-protection rule was disabled and the production branch is untouched.
+
 ## Implemented and checked locally
 
 - Opaque composite invitation IDs remain intact across CIPP, native launcher, and
