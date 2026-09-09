@@ -1,0 +1,112 @@
+name: Build custom CIPP image
+
+on:
+  pull_request:
+    branches:
+      - main
+      - integration/gdap-acceptance
+  push:
+    branches:
+      - main
+      - feature/gdap-accept-launcher
+    paths:
+      - "src/**"
+      - "backend/**"
+      - "tests/gdap-acceptance.node.test.mjs"
+      - "tests/pages/GdapAcceptanceStatus.test.jsx"
+      - "tests/pages/GdapAcceptanceRecovery.test.jsx"
+      - ".dockerignore"
+      - "public/**"
+      - "package.json"
+      - "yarn.lock"
+      - "next.config.js"
+      - "staticwebapp.config.json"
+      - "Dockerfile.custom"
+      - ".github/workflows/build-custom-image.yml"
+  workflow_dispatch:
+    inputs:
+      publish:
+        description: Publish only after all documented release gates are satisfied
+        type: boolean
+        default: false
+
+permissions:
+  contents: read
+  packages: write
+
+concurrency:
+  group: custom-cipp-image-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Check out source
+        uses: actions/checkout@v4
+
+      - name: Enforce release gate
+        if: inputs.publish == true
+        run: test -f .github/GDAP_RELEASE_READY
+
+      - name: Read CIPP version
+        id: version
+        shell: bash
+        run: echo "value=$(jq -r .version public/version.json)" >> "$GITHUB_OUTPUT"
+
+      - name: Check acceptance contracts
+        run: node --test tests/gdap-acceptance.node.test.mjs
+
+      - name: Check backend behavior
+        shell: pwsh
+        run: ./backend/Test-Recovery.ps1
+
+      - name: Set up Docker Buildx
+        uses: docker/setup-buildx-action@v3
+
+      - name: Test pinned host signed-body contract
+        run: |
+          docker build -f backend/Dockerfile.host-contract -t gdap-host-contract .
+          docker run --rm gdap-host-contract
+
+      - name: Sign in to GHCR
+        if: inputs.publish == true
+        uses: docker/login-action@v3
+        with:
+          registry: ghcr.io
+          username: ${{ github.actor }}
+          password: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Build candidate (publish only after explicit promotion)
+        id: image
+        uses: docker/build-push-action@v6
+        with:
+          context: .
+          file: Dockerfile.custom
+          platforms: linux/amd64
+          push: false
+          load: true
+          tags: |
+            ghcr.io/acdxsec/cipp-custom:${{ steps.version.outputs.value }}-${{ github.run_number }}-${{ github.run_attempt }}
+            ghcr.io/acdxsec/cipp-custom:edge
+          cache-from: type=gha
+          cache-to: type=gha,mode=max
+          labels: |
+            org.opencontainers.image.source=https://github.com/acdxsec/CIPP
+            org.opencontainers.image.version=${{ steps.version.outputs.value }}
+            org.opencontainers.image.revision=${{ github.sha }}
+
+      - name: Smoke-test actual host startup
+        shell: pwsh
+        run: ./backend/Test-HostStartup.ps1 -Engine docker -Image ghcr.io/acdxsec/cipp-custom:edge
+
+      - name: Publish smoke-tested image and record its registry digest
+        if: inputs.publish == true
+        env:
+          IMAGE_TAG: ghcr.io/acdxsec/cipp-custom:${{ steps.version.outputs.value }}-${{ github.run_number }}-${{ github.run_attempt }}
+        run: |
+          docker push "$IMAGE_TAG"
+          docker push ghcr.io/acdxsec/cipp-custom:edge
+          echo "Deploy and roll back using this exact image:" >> "$GITHUB_STEP_SUMMARY"
+          docker image inspect "$IMAGE_TAG" --format '{{index .RepoDigests 0}}' >> "$GITHUB_STEP_SUMMARY"

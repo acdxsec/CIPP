@@ -1,0 +1,33 @@
+import React from 'react';
+import { cleanup, fireEvent, render, screen } from '@testing-library/react';
+import { afterEach, expect, it, vi } from 'vitest';
+const state = vi.hoisted(() => ({ mutate: vi.fn(), id: 'opaque-relationship' }));
+vi.mock('next/router', () => ({ useRouter: () => ({ query: { id: state.id } }) }));
+vi.mock('../../src/api/ApiCall', () => ({ ApiPostCall: () => ({ mutate: state.mutate }) }));
+vi.mock('../../src/layouts/index.js', () => ({ Layout: ({ children }) => <>{children}</> }));
+vi.mock('../../src/components/CippCards/CippPageCard', () => ({ default: ({ children }) => <>{children}</> }));
+import Page from '../../src/pages/tenant/gdap-management/onboarding/recover';
+afterEach(() => { cleanup(); vi.clearAllMocks(); state.id = 'opaque-relationship'; });
+it('requires customer identity and explicit consent and never dispatches on navigation', () => {
+  render(<Page />);
+  expect(state.mutate).not.toHaveBeenCalled();
+  const submit = screen.getByRole('button', { name: 'Request initial dispatch' });
+  expect(submit).toBeDisabled();
+  fireEvent.change(screen.getByLabelText('Expected customer tenant ID'), { target: { value: '33333333-3333-3333-3333-333333333333' } });
+  expect(submit).toBeDisabled();
+  fireEvent.click(screen.getByRole('checkbox'));
+  fireEvent.click(submit);
+  expect(state.mutate).toHaveBeenCalledExactlyOnceWith({ url: '/api/ExecGdapAcceptanceRecovery', data: { id: 'opaque-relationship', expectedCustomerTenantId: '33333333-3333-3333-3333-333333333333', confirm: true } });
+  expect(submit).toBeDisabled();
+});
+it('clears identity and consent when navigation changes the relationship', () => {
+  const { rerender } = render(<Page />);
+  fireEvent.change(screen.getByLabelText('Expected customer tenant ID'), { target: { value: '33333333-3333-3333-3333-333333333333' } });
+  fireEvent.click(screen.getByRole('checkbox'));
+  expect(screen.getByRole('button', { name: 'Request initial dispatch' })).toBeEnabled();
+  state.id = 'another-relationship';
+  rerender(<Page />);
+  expect(screen.getByLabelText('Expected customer tenant ID')).toHaveValue('');
+  expect(screen.getByRole('checkbox')).not.toBeChecked();
+  expect(state.mutate).not.toHaveBeenCalled();
+});

@@ -3,7 +3,7 @@ import { Layout as DashboardLayout } from "../../../../layouts/index.js";
 import tabOptions from "../tabOptions";
 import { CippTablePage } from "../../../../components/CippComponents/CippTablePage.jsx";
 import { Button } from "@mui/material";
-import { Add } from "@mui/icons-material";
+import { Add, Login } from "@mui/icons-material";
 import Link from "next/link";
 import { TrashIcon, PencilIcon } from "@heroicons/react/24/outline";
 
@@ -12,6 +12,12 @@ const simpleColumns = ["Timestamp", "RowKey", "Reference", "Technician", "Invite
 const apiUrl = "/api/ListGDAPInvite";
 
 const actions = [
+  {
+    label: "Accept and onboard",
+    link: "/tenant/gdap-management/invites/accept?id=[RowKey]",
+    icon: <Login />,
+    color: "success",
+  },
   {
     label: "Update Internal Reference",
     url: "/api/ExecGDAPInvite",

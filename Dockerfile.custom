@@ -1,0 +1,51 @@
+# syntax=docker/dockerfile:1
+
+FROM ghcr.io/cyberdrain/cipp@sha256:4f0fd82867237d57ae4a5569d0b1c70def056d05644f9e0935721a73435bf1ff AS official-runtime
+
+FROM mcr.microsoft.com/dotnet/sdk:8.0 AS hosting-build
+WORKDIR /src
+COPY backend/hosting/ hosting/
+COPY backend/hosting-tests/ hosting-tests/
+RUN dotnet run --project hosting-tests -c Release \
+    && dotnet publish hosting/Cipp.Gdap.Hosting.csproj -c Release -o /hosting
+
+FROM mcr.microsoft.com/powershell:7.4-ubuntu-22.04 AS backend-build
+COPY --from=official-runtime /app/API/Modules/CIPPHTTP/ /patched/Modules/CIPPHTTP/
+COPY --from=official-runtime /app/API/Modules/CIPPCore/ /patched/Modules/CIPPCore/
+COPY backend/ /overlay/
+RUN pwsh -NoProfile -File /overlay/Build-Overlay.ps1 -ApiRoot /patched
+
+FROM node:22.22.0-bookworm-slim AS frontend-build
+
+WORKDIR /src
+
+COPY package.json yarn.lock ./
+
+RUN corepack enable \
+    && corepack prepare yarn@1.22.22 --activate \
+    && yarn install --frozen-lockfile
+
+COPY . .
+
+RUN node --test tests/gdap-acceptance.node.test.mjs \
+    && node node_modules/vitest/vitest.mjs run --project unit tests/pages/GdapAcceptanceStatus.test.jsx tests/pages/GdapAcceptanceRecovery.test.jsx \
+    && npm run build \
+    && cp staticwebapp.config.json out/
+
+# Craft serves precompressed frontend assets when they are present. Generate
+# matching gzip and Brotli files so the base image cannot serve stale copies.
+RUN apt-get update \
+    && apt-get install -y --no-install-recommends brotli gzip \
+    && find out -type f ! -name '*.br' ! -name '*.gz' -exec gzip -9 -k -f '{}' \; \
+    && find out -type f ! -name '*.br' ! -name '*.gz' -exec brotli -q 6 -k -f '{}' \; \
+    && rm -rf /var/lib/apt/lists/*
+
+# CIPP NG 10.9.1 (linux/amd64). Update this digest together with the frontend
+# version when merging a new upstream CIPP release.
+FROM official-runtime
+
+COPY --from=frontend-build --chown=1654:1654 /src/out/ /app/Frontend/
+COPY --from=backend-build --chown=1654:1654 /patched/Modules/ /app/API/Modules/
+COPY --from=hosting-build --chown=1654:1654 /hosting/Cipp.Gdap.Hosting.dll /hosting/Cipp.Gdap.Hosting.deps.json /app/
+ENV ASPNETCORE_HOSTINGSTARTUPASSEMBLIES=Cipp.Gdap.Hosting \
+    DOTNET_ADDITIONAL_DEPS=/app/Cipp.Gdap.Hosting.deps.json

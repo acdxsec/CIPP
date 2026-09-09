@@ -1,0 +1,15 @@
+# Test-only image. It neither replaces Craft nor adds a production endpoint.
+FROM ghcr.io/cyberdrain/cipp@sha256:4f0fd82867237d57ae4a5569d0b1c70def056d05644f9e0935721a73435bf1ff AS runtime
+FROM mcr.microsoft.com/dotnet/sdk:8.0 AS build
+WORKDIR /src
+COPY --from=runtime /app/ /runtime/
+COPY backend/hosting/ hosting/
+COPY backend/host-contract-tests/ host-contract-tests/
+RUN dotnet publish host-contract-tests/HostContractChecks.csproj -c Release -p:CraftRuntimePath=/runtime -o /checks
+FROM runtime
+COPY --from=build --chown=1654:1654 /checks/ /app/
+COPY backend/overlay/CIPPCore/Get-CippGdapOriginalWebhookBody.ps1 backend/overlay/CIPPCore/Test-CippPartnerWebhookSignature.ps1 /checks/
+ENV ASPNETCORE_HOSTINGSTARTUPASSEMBLIES=Cipp.Gdap.Hosting \
+    DOTNET_ADDITIONAL_DEPS=/app/Craft.deps.json \
+    GDAP_ACCEPTOR_ENABLED=true
+ENTRYPOINT ["dotnet", "HostContractChecks.dll"]
