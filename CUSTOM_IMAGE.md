@@ -12,18 +12,19 @@ It checks backend readiness before launching
 M365Internals installation is required. Instance enrollment is explicit and the
 expected customer tenant is entered locally before authentication.
 
-## Release blocker
+## Original-body host integration
 
-Do not deploy this candidate as a working acceptance solution. Inspection of the
-pinned Craft executable's `PowerShellRunnerService.BuildRequestFromParts` confirms
-that only parsed `Body` reaches PowerShell. Original signed bytes are discarded;
-reserializing JSON cannot reliably reproduce them.
+Craft's marshaler still discards original bytes. The image now includes a small
+ASP.NET Core hosting-startup module that captures them before parsing and hands
+them to PowerShell through single-use in-process handles. `Craft.dll` is unchanged;
+no separate proxy or service is required. See `backend/hosting/README.md`.
 
-`Test-CippGdapSignedPayloadSupport` therefore returns false. Readiness reports
-`hostRawBodyUnsupported`, new launch actions stay disabled, and existing public
-webhooks retain upstream behavior. This does not claim to fix upstream webhook
-authentication. A compatible host and signed HTTP callback tests are required
-before changing the capability gate. An environment variable cannot bypass it.
+The actual Craft startup smoke test and an HTTP-to-Craft-to-PowerShell signature
+test pass locally. The latter uses a synthetic certificate, not Microsoft's PKI.
+Readiness requires the installed module and a new signed test-delivery receipt.
+Missing capture while enabled rejects callbacks; explicitly disabled retains
+legacy upstream behavior. Do not deploy as production-ready: live portal/Partner
+Center evidence, safe recovery, signed installers and desktop validation remain.
 
 See `docs/GDAP-IMPLEMENTATION-STATUS.md` for all outstanding release work.
 

@@ -23,8 +23,12 @@ function Add-CIPPAzDataTableEntity {
 function Write-LogMessage { param($API, $message, $Sev) }
 Assert (-not (Test-CippGdapSignedPayloadSupport)) 'Unsupported pinned host reported signature support'
 function Invoke-PublicWebhooksUpstream { param($Request, $TriggerMetadata) [HttpResponseContext]@{ StatusCode=202; Body='upstream-test' } }
+$env:GDAP_ACCEPTOR_ENABLED = 'false'
 $response = Invoke-PublicWebhooks -Request @{ Query=@{ Type='PartnerCenter' }; Headers=@{}; Body=@{} }
 Assert ($response.StatusCode -eq 202) 'Development overlay broke existing webhook behavior'
+$env:GDAP_ACCEPTOR_ENABLED = 'true'
+$response = Invoke-PublicWebhooks -Request @{ Query=@{ Type='PartnerCenter' }; Headers=@{}; Body=@{} }
+Assert ($response.StatusCode -eq 403) 'Enabled feature bypassed validation on missing host extension'
 # Remaining checks exercise the contract of a future, verified compatible host.
 function Test-CippGdapSignedPayloadSupport { $true }
 $id = '5d027261-d21f-4aa9-b7db-7fa1f56fb163-8777b240-c6f0-4469-9e98-a3205431b836'
@@ -51,9 +55,13 @@ $script:Registration = @{ webhookUrl="https://cipp.example/api/PublicWebhooks?CI
 function Get-CIPPHostname { param($Headers, [switch]$PreferCustomDomain) 'cipp.example' }
 function New-GraphGetRequest { param($uri, $tenantid, $NoAuthCheck, $scope) $script:Registration }
 $script:Store['config'] = @{ Table='Config'; PartitionKey='Config'; RowKey='PartnerWebhookOnboarding'; Enabled=$true }
-$script:Store['validation'] = @{ Table='Config'; PartitionKey='Config'; RowKey='GdapAcceptanceValidation'; Status='completed'; ValidatedAt=[datetimeoffset]::UtcNow.AddMinutes(-1).ToString('o'); Fingerprint=(Get-CippGdapRegistrationFingerprint $script:Registration) }
+$script:Store['validation'] = @{ Table='Config'; PartitionKey='Config'; RowKey='GdapAcceptanceValidation'; Status='completed'; SignedDelivery=$true; ValidatedAt=[datetimeoffset]::UtcNow.AddMinutes(-1).ToString('o'); Fingerprint=(Get-CippGdapRegistrationFingerprint $script:Registration) }
 $response = Invoke-ListGdapAcceptanceReadiness -Request $request
 Assert ($response.Body.ready -eq $true) 'Valid readiness rejected'
+$script:Store['validation'].SignedDelivery = $false
+$response = Invoke-ListGdapAcceptanceReadiness -Request $request
+Assert (-not $response.Body.ready) 'Legacy delivery evidence was accepted as signature proof'
+$script:Store['validation'].SignedDelivery = $true
 $script:Registration.webhookEvents = @('test-created')
 $response = Invoke-ListGdapAcceptanceReadiness -Request $request
 Assert (-not $response.Body.ready) 'Changed registration remained ready'
@@ -73,4 +81,20 @@ try {
 } finally { $cert.Dispose(); $key.Dispose() }
 $response = Invoke-PublicWebhooks -Request @{ Query=@{ Type='PartnerCenter' }; Headers=@{}; Body=@{} }
 Assert ($response.StatusCode -eq 403) 'Missing original signed bytes accepted'
+function Invoke-ExecPartnerWebhookUpstream {
+    param($Request, $TriggerMetadata)
+    if ($Request.Query.Action -eq 'SendTest') { return [HttpResponseContext]@{ StatusCode=200; Body=@{ Results=@{ correlationId='validation-1' } } } }
+    [HttpResponseContext]@{ StatusCode=200; Body=@{ Results=@{ status='completed'; results=@(@{ responseCode=200 }) } } }
+}
+$script:Store.Clear()
+$null = Invoke-ExecPartnerWebhook -Request @{ Query=@{ Action='SendTest' } }
+$validate = @{ Query=@{ Action='ValidateTest'; CorrelationId='validation-1' } }
+$null = Invoke-ExecPartnerWebhook -Request $validate
+Assert (-not $script:Store['Config|Config|GdapAcceptanceValidation'].SignedDelivery) 'Unsigned delivery acquired signed proof'
+Set-CippGdapSignedDeliveryEvidence -VerifiedBody @{ EventName='test-created'; ResourceUri='https://api.partnercenter.microsoft.com/webhooks/v1/registration/validationEvents/validation-1' }
+$null = Invoke-ExecPartnerWebhook -Request $validate
+Assert ($script:Store['Config|Config|GdapAcceptanceValidation'].SignedDelivery) 'Matching signed delivery was not correlated'
+$script:Store['Config|GdapSignedDelivery|validation-1'].ReceivedAt = [datetimeoffset]::UtcNow.AddDays(-1).ToString('o')
+$null = Invoke-ExecPartnerWebhook -Request $validate
+Assert (-not $script:Store['Config|Config|GdapAcceptanceValidation'].SignedDelivery) 'Old signed delivery satisfied a newer test'
 Write-Output 'PASS: read-only status, completed-start evidence, duplicate dispatch, orphan claim, readiness, and signature checks'

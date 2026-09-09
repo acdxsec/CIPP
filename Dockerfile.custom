@@ -2,6 +2,13 @@
 
 FROM ghcr.io/cyberdrain/cipp@sha256:4f0fd82867237d57ae4a5569d0b1c70def056d05644f9e0935721a73435bf1ff AS official-runtime
 
+FROM mcr.microsoft.com/dotnet/sdk:8.0 AS hosting-build
+WORKDIR /src
+COPY backend/hosting/ hosting/
+COPY backend/hosting-tests/ hosting-tests/
+RUN dotnet run --project hosting-tests -c Release \
+    && dotnet publish hosting/Cipp.Gdap.Hosting.csproj -c Release -o /hosting
+
 FROM mcr.microsoft.com/powershell:7.4-ubuntu-22.04 AS backend-build
 COPY --from=official-runtime /app/API/Modules/CIPPHTTP/ /patched/Modules/CIPPHTTP/
 COPY --from=official-runtime /app/API/Modules/CIPPCore/ /patched/Modules/CIPPCore/
@@ -39,3 +46,6 @@ FROM official-runtime
 
 COPY --from=frontend-build --chown=1654:1654 /src/out/ /app/Frontend/
 COPY --from=backend-build --chown=1654:1654 /patched/Modules/ /app/API/Modules/
+COPY --from=hosting-build --chown=1654:1654 /hosting/Cipp.Gdap.Hosting.dll /hosting/Cipp.Gdap.Hosting.deps.json /app/
+ENV ASPNETCORE_HOSTINGSTARTUPASSEMBLIES=Cipp.Gdap.Hosting \
+    DOTNET_ADDITIONAL_DEPS=/app/Cipp.Gdap.Hosting.deps.json

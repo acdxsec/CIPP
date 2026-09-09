@@ -7,19 +7,15 @@ function Invoke-PublicWebhooks {
     #>
     param($Request, $TriggerMetadata)
     if ($Request.Query.Type -ne 'PartnerCenter') { return Invoke-PublicWebhooksUpstream -Request $Request -TriggerMetadata $TriggerMetadata }
-    # Readiness blocks the new journey until a compatible host is shipped.
-    # Preserve existing CIPP callbacks while this development overlay is gated.
-    if ($env:GDAP_ACCEPTOR_ENABLED -ne 'true' -or -not (Test-CippGdapSignedPayloadSupport)) {
+    # Explicitly disabled retains legacy behavior. Enabled with a broken/missing
+    # extension must reject callbacks, never silently bypass signature validation.
+    if ($env:GDAP_ACCEPTOR_ENABLED -ne 'true') {
         return Invoke-PublicWebhooksUpstream -Request $Request -TriggerMetadata $TriggerMetadata
     }
     $Certificate = $null; $Chain = $null
     try {
-        # Require original UTF-8 payload from the host. Serializing parsed JSON
-        # would change the signed bytes. Unsupported hosts must fail closed.
-        $RawBody = $Request.RawBody
-        if ($RawBody -is [string]) { $Bytes = [Text.Encoding]::UTF8.GetBytes($RawBody) }
-        elseif ($RawBody -is [byte[]]) { $Bytes = $RawBody }
-        else { throw 'Original request bytes unavailable.' }
+        if (-not (Test-CippGdapSignedPayloadSupport)) { throw 'Original request capture is not installed.' }
+        $Bytes = Get-CippGdapOriginalWebhookBody -Request $Request
         if ($Bytes.Length -eq 0 -or $Bytes.Length -gt 1048576) { throw 'Invalid request size.' }
         $Headers = $Request.Headers
         if ($Headers.'x-ms-signature-algorithm' -ne 'rsa-sha256') { throw 'Unsupported signature algorithm.' }
@@ -45,6 +41,7 @@ function Invoke-PublicWebhooks {
         if (-not (Test-CippPartnerWebhookSignature -Content $Bytes -Signature $Signature -Certificate $Certificate)) { throw 'Invalid signature.' }
         # Pass only the verified payload to downstream processing.
         $Request.Body = [Text.Encoding]::UTF8.GetString($Bytes) | ConvertFrom-Json -ErrorAction Stop
+        Set-CippGdapSignedDeliveryEvidence -VerifiedBody $Request.Body
         return Invoke-PublicWebhooksUpstream -Request $Request -TriggerMetadata $TriggerMetadata
     } catch {
         Write-LogMessage -API 'Webhooks' -message 'Partner Center callback rejected: signature or original payload validation failed.' -Sev 'Alert'

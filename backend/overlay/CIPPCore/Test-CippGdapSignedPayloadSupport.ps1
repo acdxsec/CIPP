@@ -1,6 +1,6 @@
 function Test-CippGdapSignedPayloadSupport {
-    # The pinned Craft 10.9.1 BuildRequestFromParts method exposes parsed Body,
-    # not RawBody. This is a source-reviewed capability, not an admin toggle.
-    # Change only after updating the pinned host and passing a signed HTTP test.
-    return $false
+    # An environment flag alone is insufficient: the native filter must actually
+    # be installed in this process. Missing/disabled startup extensions fail closed.
+    try { return [Cipp.Gdap.Hosting.WebhookBodyBridge]::Installed }
+    catch { return $false }
 }

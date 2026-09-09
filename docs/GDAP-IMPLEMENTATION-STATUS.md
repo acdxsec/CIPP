@@ -1,4 +1,4 @@
-# GDAP acceptance implementation status — 2026-09-08
+# GDAP acceptance implementation status — 2026-09-09
 
 This is a development candidate, not a completed production journey. User approval
 to implement supersedes the earlier Wayfinder map's planning-only scope; it does
@@ -28,15 +28,22 @@ not authorize deploying into Azure. No tenant approval has been performed.
 - Backend overlay and full custom-image build passed against the pinned base.
   The final source also uses a frozen lockfile and build-time React tests.
 - Production publishing is disabled until explicit promotion and release review.
+- Original bytes now cross the Craft-to-PowerShell seam through an in-process
+  ASP.NET hosting-startup module, without replacing Craft or adding a service.
+  Signed/tampered HTTP tests use the actual pinned Craft marshaller and PowerShell.
+  A network-isolated boot of the real Craft entrypoint also passes capture guards.
+- Readiness rejects legacy delivery tests without a matching signed receipt.
+- Companion assembly and contract checks passed Windows/Linux CI; the initial
+  CIPP draft image build passed CI. These are not target-desktop lifecycle tests.
 
 ## Open gates — do not close the map or release ticket
 
-1. **Craft host compatibility.** Inspection of the actual pinned `Craft.dll` with
-   ILSpy 11 confirms `BuildRequestFromParts` passes Method, Url, Query, Headers,
-   Body, Params; Body is already parsed JSON. No original-byte field is provided.
-   The source-reviewed capability gate blocks new launches and preserves existing
-   public-webhook behavior. A compatible host change plus a signed HTTP callback
-   test is required. The PowerShell signature adapter alone cannot fix this.
+1. **Live webhook validation.** The original-body transport blocker is resolved in
+   the development image using a hosting-startup extension. The HTTP integration
+   check uses a synthetic certificate; verify the complete Microsoft certificate
+   chain/revocation path and actual signed Partner Center test-event ResourceUri
+   in a lab. Readiness requires fresh correlated signed-receipt evidence. Craft's
+   source repository is no longer required for this implementation path.
 2. **Portal evidence.** The strict v1 partner/customer/role/duration/ETag adapter
    requires sanitized live fixtures. Synthetic shapes are not proof of Microsoft's
    current undocumented API. Exercise wrong tenant, generic/customer-bound invites,

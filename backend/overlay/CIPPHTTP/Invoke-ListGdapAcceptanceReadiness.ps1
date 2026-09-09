@@ -25,7 +25,7 @@ function Invoke-ListGdapAcceptanceReadiness {
         $Fingerprint = Get-CippGdapRegistrationFingerprint $Registration
         $Validation = Get-CIPPAzDataTableEntity @ConfigTable -Filter "PartitionKey eq 'Config' and RowKey eq 'GdapAcceptanceValidation'" -First 1
         $At = [datetimeoffset]::MinValue
-        if ($Validation.Status -ne 'completed' -or $Validation.Fingerprint -cne $Fingerprint -or
+        if ($Validation.Status -ne 'completed' -or $Validation.SignedDelivery -ne $true -or $Validation.Fingerprint -cne $Fingerprint -or
             -not [datetimeoffset]::TryParse([string]$Validation.ValidatedAt, [ref]$At) -or
             $At -gt [datetimeoffset]::UtcNow -or $At -lt [datetimeoffset]::UtcNow.AddHours(-24)) {
             $Reasons.Add('webhookValidationRequired')
