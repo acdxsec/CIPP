@@ -34,6 +34,7 @@ const Page = () => {
           {status.data?.status === 'dispatchNeedsReview' && <Alert severity="warning">A dispatch reservation exists without a job. An administrator must inspect the worker and reservation before recovery.</Alert>}
           {expired && !started && <Alert severity="warning">Onboarding start has not been confirmed. Check webhook delivery and CIPP logs before requesting recovery.</Alert>}
           <Button onClick={() => status.refetch()}>Refresh status</Button>
+          {!started && <Button href={`/tenant/gdap-management/onboarding/recover?id=${encodeURIComponent(id)}`}>Review missing-dispatch recovery</Button>}
           <Button href={`/tenant/gdap-management/onboarding/start?id=${encodeURIComponent(id)}`}>Existing onboarding details and administrative controls</Button>
         </>}
       </Stack></CardContent>

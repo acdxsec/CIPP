@@ -28,7 +28,7 @@ RUN corepack enable \
 COPY . .
 
 RUN node --test tests/gdap-acceptance.node.test.mjs \
-    && node node_modules/vitest/vitest.mjs run --project unit tests/pages/GdapAcceptanceStatus.test.jsx \
+    && node node_modules/vitest/vitest.mjs run --project unit tests/pages/GdapAcceptanceStatus.test.jsx tests/pages/GdapAcceptanceRecovery.test.jsx \
     && npm run build \
     && cp staticwebapp.config.json out/
 

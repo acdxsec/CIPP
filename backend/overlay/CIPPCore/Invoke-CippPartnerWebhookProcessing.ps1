@@ -15,7 +15,7 @@ function Invoke-CippPartnerWebhookProcessing {
     $Audit = New-GraphGetRequest -uri $Uri.AbsoluteUri -tenantid $env:TenantID -NoAuthCheck $true -scope 'https://api.partnercenter.microsoft.com/.default'
     if (-not $Audit.resourceNewValue) { throw 'Approval audit evidence is unavailable.' }
     $Relationship = $Audit.resourceNewValue | ConvertFrom-Json -ErrorAction Stop
-    Invoke-CippGdapDispatchOnce -Id ([string]$Relationship.id) -Dispatch {
+    $null = Invoke-CippGdapDispatchOnce -Id ([string]$Relationship.id) -Dispatch {
         Invoke-CippPartnerWebhookProcessingUpstream -Data $Data
     }
 }

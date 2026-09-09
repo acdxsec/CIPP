@@ -42,8 +42,8 @@ foreach ($status in @('queued', 'running', 'succeeded', 'failed')) {
 }
 Assert ($script:Writes -eq 0) 'Status endpoint mutated rows'
 $script:Store.Clear()
-Invoke-CippGdapDispatchOnce -Id $id -Dispatch { $script:Dispatches++ }
-Invoke-CippGdapDispatchOnce -Id $id -Dispatch { $script:Dispatches++ }
+$null = Invoke-CippGdapDispatchOnce -Id $id -Dispatch { $script:Dispatches++ }
+$null = Invoke-CippGdapDispatchOnce -Id $id -Dispatch { $script:Dispatches++ }
 Assert ($script:Dispatches -eq 1) 'Duplicate event dispatched again'
 $response = Invoke-ListGdapAcceptanceStatus -Request $request
 Assert ($response.Body.status -eq 'dispatchNeedsReview') 'Orphan claim hidden'

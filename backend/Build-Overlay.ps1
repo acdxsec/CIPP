@@ -10,6 +10,9 @@ foreach ($Module in $Expected.Keys) {
     if ((Get-FileHash $Path -Algorithm SHA256).Hash -ine $Expected[$Module]) { throw "Unsupported base module: $Module. Review the overlay before changing its pinned hash." }
     $Source = [IO.File]::ReadAllText($Path)
     if ($Module -eq 'CIPPHTTP') {
+        $Needle = 'function Invoke-ExecOnboardTenant {'
+        if (($Source.Split($Needle, [StringSplitOptions]::None)).Count -ne 2) { throw 'Expected exactly one manual onboarding function.' }
+        $Source = $Source.Replace($Needle, 'function Invoke-ExecOnboardTenantUpstream {')
         $Needle = 'function Invoke-ExecPartnerWebhook {'
         if (($Source.Split($Needle, [StringSplitOptions]::None)).Count -ne 2) { throw 'Expected exactly one webhook settings function.' }
         $Source = $Source.Replace($Needle, 'function Invoke-ExecPartnerWebhookUpstream {')

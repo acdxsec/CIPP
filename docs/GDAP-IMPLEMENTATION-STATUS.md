@@ -30,6 +30,10 @@ No branch-protection rule was disabled and the production branch is untouched.
   minutes or proven start. Queued is not started; running, succeeded, and failed
   indicate the worker started. React tests cover polling and completed state.
 - Atomic webhook dispatch claims suppress duplicates and expose orphan claims.
+- Manual first starts now share the webhook reservation. Confirmed missing-event
+  recovery verifies active relationship/customer identity and cannot reset an
+  uncertain dispatch. Interleaved callers, old queued rows and confirmation guards
+  pass local checks; downstream CIPP retries remain unchanged.
 - Backend overlay and full custom-image build passed against the pinned base.
   The final source also uses a frozen lockfile and build-time React tests.
 - Production publishing is disabled until explicit promotion and release review.
@@ -53,19 +57,21 @@ No branch-protection rule was disabled and the production branch is untouched.
    requires sanitized live fixtures. Synthetic shapes are not proof of Microsoft's
    current undocumented API. Exercise wrong tenant, generic/customer-bound invites,
    identity changes, cancellation, ambiguity, and active/activating transitions.
-3. **Recovery.** A claim created before a crashed dispatch is deliberately not
-   expired automatically. A unified authorized recovery contract and concurrency
-   tests spanning webhook and existing manual controls remain unimplemented.
-4. **Native installation.** Windows development registration and Debian templates
-   are not signed installers. Build/test a **per-user** Windows MSI and scoped signed
+3. **Recovery.** Missing-event recovery and shared initial-dispatch tests are
+   implemented. A crashed dispatch's claim is deliberately not expired. Validate
+   the [operator runbook](GDAP-RECOVERY.md), including worker quiescence, in the lab;
+   no automatic orphan reset is provided.
+4. **Native installation.** Unsigned development MSI/Debian authoring and package
+   checks are implemented in GDAP-Acceptor, with Windows lifecycle CI added.
+   Production still requires a signed **per-user** Windows MSI and scoped signed
    APT repository; test installation, upgrade, removal and multi-user isolation on
    Windows 11 and Kubuntu 26.04. The earlier per-machine research suggestion is not
    the approved product choice. Managed signing identities are not configured.
 5. **Browser and lifecycle.** Test CA, PIM, passkeys/MFA, managed-browser policies,
    profile cleanup after cancellation/crash, native activation from real browsers,
    default-browser return, and terminal lifetime on both desktops.
-6. **Release UX.** Signed update notification and one tested recovery runbook are
-   outstanding. The current releases link has no production installer behind it.
+6. **Release UX.** Signed update notification and lab validation of the recovery
+   runbook are outstanding. The releases link has no production installer behind it.
 7. **End-to-end trial.** An authorized partner/customer lab must prove approval to
    actual CIPP worker start. Keep downstream CIPP task/failure ownership unchanged.
 
@@ -73,7 +79,7 @@ No branch-protection rule was disabled and the production branch is untouched.
 
 ```sh
 node --test tests/gdap-acceptance.node.test.mjs
-pwsh -NoProfile -File backend/Test-Overlay.ps1
+pwsh -NoProfile -File backend/Test-Recovery.ps1
 docker build -f Dockerfile.custom -t cipp-gdap:development .
 # In GDAP-Acceptor:
 dotnet run --project src -- self-test
