@@ -1,7 +1,7 @@
 function Invoke-CippPartnerWebhookProcessing {
     [CmdletBinding()]
     param($Data)
-    if ($Data.EventName -ne 'granular-admin-relationship-approved') {
+    if ($env:GDAP_ACCEPTOR_ENABLED -ne 'true' -or $Data.EventName -ne 'granular-admin-relationship-approved') {
         return Invoke-CippPartnerWebhookProcessingUpstream -Data $Data
     }
     $Uri = $null

@@ -22,6 +22,12 @@ $null = Invoke-CippGdapDispatchOnce -Id $id -Dispatch {
     $script:Dispatches++
 }
 Assert ($script:Dispatches -eq 1) 'Competing dispatch executed twice'
+function Invoke-CippPartnerWebhookProcessingUpstream { param($Data) $script:LegacyWebhookCalls++ }
+$script:LegacyWebhookCalls = 0
+$env:GDAP_ACCEPTOR_ENABLED = 'false'
+Invoke-CippPartnerWebhookProcessing -Data @{ EventName='granular-admin-relationship-approved' }
+Assert ($script:LegacyWebhookCalls -eq 1) 'Disabled feature changed legacy processing'
+$env:GDAP_ACCEPTOR_ENABLED = 'true'
 $script:Store['job'] = @{ Table='TenantOnboarding'; PartitionKey='Onboarding'; RowKey=$id; Status='queued'; Timestamp='2000-01-01'; OnboardingSteps='{"Step1":{"Status":"pending"}}'; Relationship=''; Logs='' }
 $response = Invoke-ExecOnboardTenant -Request $manual
 Assert ($response.StatusCode -eq 200 -and $response.Body.Status -eq 'queued' -and $script:Dispatches -eq 1) 'Old queued row was restarted by polling'
@@ -32,6 +38,11 @@ foreach ($operation in @('Retry','Cancel')) {
     Assert ($response.StatusCode -eq 409 -and $script:Dispatches -eq 1) 'Unstarted job was reset by an administrative action'
     $manual.Body.Remove($operation)
 }
+$script:Store['job'].Status = 'failed'
+$manual.Body.Retry = $true
+$response = Invoke-ExecOnboardTenant -Request $manual
+Assert ($response.StatusCode -eq 200 -and $script:Dispatches -eq 2) 'Started-job retry ownership was taken away from CIPP'
+$manual.Body.Remove('Retry')
 $script:Store.Clear(); $script:Dispatches = 0
 $script:Store['config'] = @{ Table='Config'; PartitionKey='Config'; RowKey='PartnerWebhookOnboarding'; Enabled=$true }
 $customer = '33333333-3333-3333-3333-333333333333'
